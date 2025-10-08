@@ -16,4 +16,13 @@
         android:id="@+id/edit_province"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"/>
+
+<!--    Added the delete button-->
+    <Button
+        android:id="@+id/button_delete"
+        android:text="Delete City"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:backgroundTint="#FF5722"/>
 </LinearLayout>

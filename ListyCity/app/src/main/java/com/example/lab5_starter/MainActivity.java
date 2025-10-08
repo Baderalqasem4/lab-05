@@ -1,6 +1,7 @@
 package com.example.lab5_starter;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.ListView;
@@ -11,6 +12,13 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.google.firebase.firestore.CollectionReference;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.FirebaseFirestoreException;
+import com.google.firebase.firestore.QueryDocumentSnapshot;
+import com.google.firebase.firestore.QuerySnapshot;
+
 import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity implements CityDialogFragment.CityDialogListener {
@@ -20,6 +28,10 @@ public class MainActivity extends AppCompatActivity implements CityDialogFragmen
 
     private ArrayList<City> cityArrayList;
     private ArrayAdapter<City> cityArrayAdapter;
+
+    private FirebaseFirestore db;
+
+    private CollectionReference citiesRef;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,22 +67,66 @@ public class MainActivity extends AppCompatActivity implements CityDialogFragmen
             cityDialogFragment.show(getSupportFragmentManager(),"City Details");
         });
 
+        db = FirebaseFirestore.getInstance();
+        citiesRef = db.collection("cities");
+
+        citiesRef.addSnapshotListener((QuerySnapshot value, FirebaseFirestoreException error) -> {
+            if (error != null) {
+                Log.e("Firestore", error.toString());
+            }
+
+            if (value != null && !value.isEmpty()) {
+                cityArrayList.clear();
+                for (QueryDocumentSnapshot snapshot : value) {
+                    String name = snapshot.getString("name");
+                    String province = snapshot.getString("province");
+
+                    cityArrayList.add(new City(name, province));
+                }
+                cityArrayAdapter.notifyDataSetChanged();
+            }
+        });
+
     }
 
     @Override
     public void updateCity(City city, String title, String year) {
-        city.setName(title);
-        city.setProvince(year);
-        cityArrayAdapter.notifyDataSetChanged();
+        String originalName = city.getName(); // store original name before updating
+        DocumentReference oldDocRef = citiesRef.document(originalName);
 
-        // Updating the database using delete + addition
+        oldDocRef.delete().addOnSuccessListener(aVoid -> { // removes the city from database
+            // once thats deleted, city and province are updated locally (async behaviour)
+            city.setName(title);
+            city.setProvince(year);
+
+            // adds the new city to the database. UI updates automatically
+            DocumentReference newDocRef = citiesRef.document(city.getName());
+            newDocRef.set(city);
+        });
     }
 
     @Override
     public void addCity(City city){
+        // this changes the UI locally
         cityArrayList.add(city);
         cityArrayAdapter.notifyDataSetChanged();
 
+        // this updates the database. The firestore snapshot in
+        // onCreate() detects the change and refreshes the ListView
+        DocumentReference docRef = citiesRef.document(city.getName());
+        docRef.set(city);
+    }
+
+    @Override
+    // deleteCity logic for CityDialogFragment
+    public void deleteCity(City city) {
+        // remove from local list
+        cityArrayList.remove(city);
+        cityArrayAdapter.notifyDataSetChanged();
+
+        // remove from database
+        DocumentReference docRef = citiesRef.document(city.getName());
+        docRef.delete();
     }
 
     public void addDummyData(){
